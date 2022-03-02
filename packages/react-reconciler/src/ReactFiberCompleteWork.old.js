@@ -227,6 +227,7 @@ if (supportsMutation) {
       rootContainerInstance,
       currentHostContext,
     );
+    console.log('updateHostComponent-updatePayload', updatePayload);
     // TODO: Type this specific to this type of component.
     workInProgress.updateQueue = (updatePayload: any);
     // If the update payload indicates that there is a change or if there
@@ -744,6 +745,7 @@ function completeWork(
             markUpdate(workInProgress);
           }
         } else {
+          //为fiber节点创建对应的dom节点
           const instance = createInstance(
             type,
             newProps,
@@ -751,9 +753,9 @@ function completeWork(
             currentHostContext,
             workInProgress,
           );
-
+          //在创建的dom节点上插入子孙节点
           appendAllChildren(instance, workInProgress, false, false);
-
+          //将真实dom节点赋值给workInProgress的stateNode
           workInProgress.stateNode = instance;
 
           // Certain renderers require commit-time effects for initial mount.

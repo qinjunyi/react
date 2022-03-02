@@ -8,3 +8,4 @@
 'use strict';
 
 export * from './src/Scheduler';
+export * from './src/forks/SchedulerHostConfig.mock';

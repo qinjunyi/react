@@ -1657,10 +1657,12 @@ function performUnitOfWork(unitOfWork: Fiber): void {
 
   resetCurrentDebugFiberInDEV();
   unitOfWork.memoizedProps = unitOfWork.pendingProps;
+  //若没有子节点或子节点没有更新则进入自下向上的“归”的过程
   if (next === null) {
     // If this doesn't spawn new work, complete the current work.
     completeUnitOfWork(unitOfWork);
   } else {
+    //否则还是自上向下的“递”过程
     workInProgress = next;
   }
 

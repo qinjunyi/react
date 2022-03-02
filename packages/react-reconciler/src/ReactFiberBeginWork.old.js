@@ -2985,7 +2985,9 @@ function updateScopeComponent(current, workInProgress, renderLanes) {
 export function markWorkInProgressReceivedUpdate() {
   didReceiveUpdate = true;
 }
-
+/**
+ * @description 复用上一次的fiber节点，即current，即workInProgress.alternate
+ */
 function bailoutOnAlreadyFinishedWork(
   current: Fiber | null,
   workInProgress: Fiber,
@@ -3104,7 +3106,7 @@ function beginWork(
       );
     }
   }
-
+  //非首次挂载，即组件更新时
   if (current !== null) {
     const oldProps = current.memoizedProps;
     const newProps = workInProgress.pendingProps;
@@ -3308,6 +3310,7 @@ function beginWork(
       }
     }
   } else {
+    //组件首次挂载时
     didReceiveUpdate = false;
   }
 
@@ -3317,7 +3320,7 @@ function beginWork(
   // sometimes bails out later in the begin phase. This indicates that we should
   // move this assignment out of the common path and into each branch.
   workInProgress.lanes = NoLanes;
-
+  //真正开始挂载，根据tag创建不同的Fiber节点
   switch (workInProgress.tag) {
     case IndeterminateComponent: {
       return mountIndeterminateComponent(
