@@ -1151,6 +1151,7 @@ function commitPlacement(finishedWork: Fiber): void {
   }
 
   // Recursively insert all host nodes into the parent.
+  //获取父级fiber节点
   const parentFiber = getHostParentFiber(finishedWork);
 
   // Note: these two variables *must* always be updated together.
@@ -1190,6 +1191,7 @@ function commitPlacement(finishedWork: Fiber): void {
     parentFiber.flags &= ~ContentReset;
   }
 
+  //获取兄弟fiber节点
   const before = getHostSibling(finishedWork);
   // We only have the top Fiber that was inserted but we need to recurse down its
   // children to find all the terminal nodes.
@@ -1282,6 +1284,7 @@ function unmountHostComponents(
   while (true) {
     if (!currentParentIsValid) {
       let parent = node.return;
+      //找到父节点的真实dom赋值给currentParent
       findParent: while (true) {
         invariant(
           parent !== null,
@@ -1424,6 +1427,7 @@ function commitDeletion(
     commitNestedUnmounts(finishedRoot, current, renderPriorityLevel);
   }
   const alternate = current.alternate;
+  //将current和workInProgress fiber相关属性都重置
   detachFiberMutation(current);
   if (alternate !== null) {
     detachFiberMutation(alternate);
@@ -1506,6 +1510,7 @@ function commitWork(current: Fiber | null, finishedWork: Fiber): void {
       // This prevents sibling component effects from interfering with each other,
       // e.g. a destroy function in one component should never override a ref set
       // by a create function in another component during the same commit.
+      //会在commitHookEffectListUnmount中执行useLayoutEffect的销毁函数
       if (
         enableProfilerTimer &&
         enableProfilerCommitHooks &&

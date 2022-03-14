@@ -1795,7 +1795,7 @@ function completeUnitOfWork(unitOfWork: Fiber): void {
     completedWork = returnFiber;
     // Update the next thing we're working on in case something throws.
     workInProgress = completedWork;
-  } while (completedWork !== null);
+  } while (completedWork !== null); //一直‘归’到根节点
 
   // We've reached the root.
   if (workInProgressRootExitStatus === RootIncomplete) {
@@ -1888,6 +1888,7 @@ function commitRoot(root) {
 }
 
 function commitRootImpl(root, renderPriorityLevel) {
+  // 第一阶段：berfore mutation
   do {
     // `flushPassiveEffects` will call `flushSyncUpdateQueue` at the end, which
     // means `flushPassiveEffects` will sometimes result in additional
@@ -1895,6 +1896,7 @@ function commitRootImpl(root, renderPriorityLevel) {
     // no more pending effects.
     // TODO: Might be better if `flushPassiveEffects` did not automatically
     // flush synchronous work at the end, to avoid factoring hazards like this.
+    // 触发一些副作用操作，比如useEffect回调与其他同步操作，这些操作都可能导致新的渲染，因此要遍历执行一直到没有任务
     flushPassiveEffects();
   } while (rootWithPendingPassiveEffects !== null);
   flushRenderPhaseStrictModeWarningsInDEV();
@@ -1903,7 +1905,8 @@ function commitRootImpl(root, renderPriorityLevel) {
     (executionContext & (RenderContext | CommitContext)) === NoContext,
     'Should not already be working.',
   );
-
+  //root代表的是整个应用的根节点fiberRoot
+  //root.finishedWork代表已经完成render阶段的组件根节点rootFiber
   const finishedWork = root.finishedWork;
   const lanes = root.finishedLanes;
 
@@ -1941,16 +1944,19 @@ function commitRootImpl(root, renderPriorityLevel) {
 
   // commitRoot never returns a continuation; it always finishes synchronously.
   // So we can clear these now to allow a new callback to be scheduled.
+  //重置Scheduler绑定的回调函数
   root.callbackNode = null;
 
   // Update the first and last pending times on this root. The new first
   // pending time is whatever is left on the root fiber.
   let remainingLanes = mergeLanes(finishedWork.lanes, finishedWork.childLanes);
+  //重置优先级相关变量
   markRootFinished(root, remainingLanes);
 
   // Clear already finished discrete updates in case that a later call of
   // `flushDiscreteUpdates` starts a useless render pass which may cancels
   // a scheduled timeout.
+  //清空一些discrete updates，比如鼠标点击触发的更新
   if (rootsWithPendingDiscreteUpdates !== null) {
     if (
       !hasDiscreteLanes(remainingLanes) &&
@@ -1970,7 +1976,12 @@ function commitRootImpl(root, renderPriorityLevel) {
     // we're committing now. This most commonly happens when a suspended root
     // times out.
   }
-
+  // 将effectList赋值给firstEffect
+  // 由于每个fiber的effectList只包含他的子孙节点
+  // 为什么只包含他的子孙节点？在1717行以及1741行可得知
+  // 所以根节点如果有effectTag则不会被包含进来
+  // 所以这里将有effectTag的根节点插入到effectList尾部
+  // 这样才能保证有effect的fiber都在effectList中
   // Get the list of effects.
   let firstEffect;
   if (finishedWork.flags > PerformedWork) {
@@ -1992,10 +2003,11 @@ function commitRootImpl(root, renderPriorityLevel) {
   if (firstEffect !== null) {
     let previousLanePriority;
     if (decoupleUpdatePriorityFromScheduler) {
+      // 保存之前的优先级，以同步优先级执行，执行完毕后恢复之前优先级
       previousLanePriority = getCurrentUpdateLanePriority();
       setCurrentUpdateLanePriority(SyncLanePriority);
     }
-
+    // 将当前上下文标记为CommitContext，作为commit阶段的标志
     const prevExecutionContext = executionContext;
     executionContext |= CommitContext;
     const prevInteractions = pushInteractions(root);
@@ -2010,6 +2022,7 @@ function commitRootImpl(root, renderPriorityLevel) {
     // The first phase a "before mutation" phase. We use this phase to read the
     // state of the host tree right before we mutate it. This is where
     // getSnapshotBeforeUpdate is called.
+    // 处理focus状态
     focusedInstanceHandle = prepareForCommit(root.containerInfo);
     shouldFireAfterActiveInstanceBlur = false;
 
@@ -2025,6 +2038,7 @@ function commitRootImpl(root, renderPriorityLevel) {
         }
       } else {
         try {
+          // beforeMutation阶段的主函数！！！
           commitBeforeMutationEffects();
         } catch (error) {
           invariant(nextEffect !== null, 'Should be working on an effect.');
@@ -2044,6 +2058,9 @@ function commitRootImpl(root, renderPriorityLevel) {
     }
 
     // The next phase is the mutation phase, where we mutate the host tree.
+    //第二阶段：mutation阶段
+    //又会重新遍历effectList
+    //直接操作dom
     nextEffect = firstEffect;
     do {
       if (__DEV__) {
@@ -2062,6 +2079,7 @@ function commitRootImpl(root, renderPriorityLevel) {
         }
       } else {
         try {
+          //mutation主要函数！！！
           commitMutationEffects(root, renderPriorityLevel);
         } catch (error) {
           invariant(nextEffect !== null, 'Should be working on an effect.');
@@ -2131,9 +2149,9 @@ function commitRootImpl(root, renderPriorityLevel) {
       recordCommitTime();
     }
   }
-
+  // 第四阶段 layout完毕后的操作
   const rootDidHavePassiveEffects = rootDoesHavePassiveEffects;
-
+  //useEffect相关
   if (rootDoesHavePassiveEffects) {
     // This commit has passive effects. Stash a reference to them. But don't
     // schedule a callback until after flushing layout work.
@@ -2190,7 +2208,7 @@ function commitRootImpl(root, renderPriorityLevel) {
       finishPendingInteractions(root, lanes);
     }
   }
-
+  //检测无限循环的同步任务
   if (remainingLanes === SyncLane) {
     // Count the number of times the root synchronously re-renders without
     // finishing. If there are too many, it indicates an infinite update loop.
@@ -2212,6 +2230,7 @@ function commitRootImpl(root, renderPriorityLevel) {
 
   // Always call this before exiting `commitRoot`, to ensure that any
   // additional work on this root is scheduled.
+  // 在离开commitRoot函数前调用，触发一次新的调度，确保任何附加的任务被调度
   ensureRootIsScheduled(root, now());
 
   if (hasUncaughtError) {
@@ -2220,7 +2239,7 @@ function commitRootImpl(root, renderPriorityLevel) {
     firstUncaughtError = null;
     throw error;
   }
-
+  // 处理未捕获错误及老版本遗留的边界问题
   if ((executionContext & LegacyUnbatchedContext) !== NoContext) {
     if (__DEV__) {
       if (enableDebugTracing) {
@@ -2240,6 +2259,9 @@ function commitRootImpl(root, renderPriorityLevel) {
   }
 
   // If layout work was scheduled, flush it now.
+  // 执行同步任务，这样同步任务不需要等到下次事件循环再执行
+  // 比如在 componentDidMount 中执行 setState 创建的更新会在这里被同步执行
+  // 或useLayoutEffect
   flushSyncCallbackQueue();
 
   if (__DEV__) {
@@ -2258,7 +2280,7 @@ function commitRootImpl(root, renderPriorityLevel) {
 function commitBeforeMutationEffects() {
   while (nextEffect !== null) {
     const current = nextEffect.alternate;
-
+    //focus和blur相关的处理
     if (!shouldFireAfterActiveInstanceBlur && focusedInstanceHandle !== null) {
       if ((nextEffect.flags & Deletion) !== NoFlags) {
         if (doesFiberContain(nextEffect, focusedInstanceHandle)) {
@@ -2281,16 +2303,17 @@ function commitBeforeMutationEffects() {
     const flags = nextEffect.flags;
     if ((flags & Snapshot) !== NoFlags) {
       setCurrentDebugFiberInDEV(nextEffect);
-
+      //这里会触发class组件的getSnapshotBeforeUpdate生命周期钩子
       commitBeforeMutationEffectOnFiber(current, nextEffect);
 
       resetCurrentDebugFiberInDEV();
     }
+    //调用useEffect
     if ((flags & Passive) !== NoFlags) {
       // If there are passive effects, schedule a callback to flush at
       // the earliest opportunity.
       if (!rootDoesHavePassiveEffects) {
-        rootDoesHavePassiveEffects = true;
+        rootDoesHavePassiveEffects = true; //调度flushPassiveEffects，会等layout后触发
         scheduleCallback(NormalSchedulerPriority, () => {
           flushPassiveEffects();
           return null;
@@ -2312,10 +2335,12 @@ function commitMutationEffects(
     const flags = nextEffect.flags;
 
     if (flags & ContentReset) {
+      //重置文字节点
       commitResetTextContent(nextEffect);
     }
 
     if (flags & Ref) {
+      //更新ref
       const current = nextEffect.alternate;
       if (current !== null) {
         commitDetachRef(current);
