@@ -1888,7 +1888,7 @@ function commitRoot(root) {
 }
 
 function commitRootImpl(root, renderPriorityLevel) {
-  // 第一阶段：berfore mutation
+  // 第一阶段：berfore mutation之前
   do {
     // `flushPassiveEffects` will call `flushSyncUpdateQueue` at the end, which
     // means `flushPassiveEffects` will sometimes result in additional
@@ -1999,7 +1999,7 @@ function commitRootImpl(root, renderPriorityLevel) {
     // There is no effect on the root.
     firstEffect = finishedWork.firstEffect;
   }
-
+  // 第二阶段：berfore mutation阶段
   if (firstEffect !== null) {
     let previousLanePriority;
     if (decoupleUpdatePriorityFromScheduler) {
@@ -2058,7 +2058,7 @@ function commitRootImpl(root, renderPriorityLevel) {
     }
 
     // The next phase is the mutation phase, where we mutate the host tree.
-    //第二阶段：mutation阶段
+    //第三阶段：mutation阶段
     //又会重新遍历effectList
     //直接操作dom
     nextEffect = firstEffect;
@@ -2149,7 +2149,7 @@ function commitRootImpl(root, renderPriorityLevel) {
       recordCommitTime();
     }
   }
-  // 第四阶段 layout完毕后的操作
+  // 第五阶段 layout完毕后的操作
   const rootDidHavePassiveEffects = rootDoesHavePassiveEffects;
   //useEffect相关
   if (rootDoesHavePassiveEffects) {
@@ -2176,7 +2176,7 @@ function commitRootImpl(root, renderPriorityLevel) {
 
   // Read this again, since an effect might have updated it
   remainingLanes = root.pendingLanes;
-
+  //性能优化相关
   // Check if there's remaining work on this root
   if (remainingLanes !== NoLanes) {
     if (enableSchedulerTracing) {
@@ -2198,7 +2198,7 @@ function commitRootImpl(root, renderPriorityLevel) {
     // error boundaries.
     legacyErrorBoundariesThatAlreadyFailed = null;
   }
-
+  //性能优化相关
   if (enableSchedulerTracing) {
     if (!rootDidHavePassiveEffects) {
       // If there are no passive effects, then we can complete the pending interactions.
@@ -2313,7 +2313,8 @@ function commitBeforeMutationEffects() {
       // If there are passive effects, schedule a callback to flush at
       // the earliest opportunity.
       if (!rootDoesHavePassiveEffects) {
-        rootDoesHavePassiveEffects = true; //调度flushPassiveEffects，会等layout后触发
+        rootDoesHavePassiveEffects = true;
+        //调度flushPassiveEffects，会等layout后触发
         scheduleCallback(NormalSchedulerPriority, () => {
           flushPassiveEffects();
           return null;
@@ -2360,6 +2361,7 @@ function commitMutationEffects(
     // switch on that value.
     const primaryFlags = flags & (Placement | Update | Deletion | Hydrating);
     switch (primaryFlags) {
+      //插入操作
       case Placement: {
         commitPlacement(nextEffect);
         // Clear the "placement" from effect tag so that we know that this is
